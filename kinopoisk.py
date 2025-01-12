@@ -1,71 +1,47 @@
 import requests
 from bs4 import BeautifulSoup
-import json
 import csv
+import json
 
 
-class LowRatedMoviesParser:
-    def __init__(self, base_url):
+class KinoPoiskParser:
+    def __init__(self, base_url="https://www.kinopoisk.ru/lists/movies/top/"):
         self.base_url = base_url
+        self.movies = []
 
-    def fetch_movies_data(self):
+    def fetch_movies(self, year_from=2010, year_to=2015):
+
+
         response = requests.get(self.base_url)
-        if response.status_code != 200:
-            raise Exception(f"Failed to fetch data from {self.base_url}")
-        return response.text
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-    def parse_movies_data(self, html):
-        soup = BeautifulSoup(html, 'html.parser')
-        movies = []
 
-        # Измените 'div' и 'class_' на актуальные, если структура HTML изменилась
-        for movie in soup.find_all('div', class_='search_results'):
-            title_tag = movie.find('a', class_='title')
-            rating_tag = movie.find('span', class_='rating')
-            year_tag = movie.find('span', class_='year')
+        movie_list = soup.find_all('div', class_='desktop-list-main')
 
-            if title_tag and rating_tag and year_tag:
-                title = title_tag.text.strip()
-                rating = float(rating_tag.text.strip().replace(',', '.'))
-                year = int(year_tag.text.strip())
-                movies.append({
-                    'title': title,
-                    'rating': rating,
-                    'year': year
+        for movie in movie_list:
+            title = movie.find('span', class_='movie-title').text.strip()
+            rating = movie.find('span', class_='rating').text.strip()
+            year = movie.find('span', class_='year').text.strip()
+
+            if year_from <= int(year) <= year_to:
+                self.movies.append({
+                    "title": title,
+                    "rating": rating,
+                    "year": year
                 })
 
-        # Сортировка фильмов по рейтингу (по возрастанию)
-        movies.sort(key=lambda x: x['rating'])
+    def export_to_csv(self, filename="movies.csv"):
 
-        # Дебаг: вывод количества найденных фильмов
-        print(f"Found {len(movies)} movies.")
-
-        return movies
-
-    def save_to_json(self, data, filename='low_rated_movies.json'):
-        with open(filename, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-    def save_to_csv(self, data, filename='low_rated_movies.csv'):
-        with open(filename, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=data[0].keys())
+        with open(filename, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=["title", "rating", "year"])
             writer.writeheader()
-            writer.writerows(data)
+            writer.writerows(self.movies)
 
-    def run(self):
-        html = self.fetch_movies_data()
-        movies = self.parse_movies_data(html)
+    def export_to_json(self, filename="movies.json"):
 
-        if not movies:
-            print("No low-rated movies found.")
-            return  # Выход, если фильмы не найдены
+        with open(filename, 'w', encoding='utf-8') as file:
+            json.dump(self.movies, file, ensure_ascii=False, indent=4)
 
-        self.save_to_json(movies)
-        self.save_to_csv(movies)
-        print(f"Parsed {len(movies)} low-rated movies.")
-
-
-if __name__ == "__main__":
-    base_url = "https://www.kinopoisk.ru/user/1928945/"
-    parser = LowRatedMoviesParser(base_url)
-    parser.run()
+    def get_movies(self):
+       
+        return self.movies
